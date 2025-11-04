@@ -160,10 +160,6 @@ if uploaded_file is not None:
     all_categories = sorted(df_complet['Catégorie'].unique())
     selected_categories = st.sidebar.multiselect("Catégories", all_categories, default=all_categories)
 
-    # Filtre par Établissement
-    all_etablissements = sorted(df_complet['Code_établissement'].unique())
-    selected_etablissements = st.sidebar.multiselect("Établissements", all_etablissements, default=all_etablissements)
-
     # Filtre par Article (Libellé)
     all_articles = sorted(df_complet['Libellé'].unique())
     selected_articles = st.sidebar.multiselect("Articles (Libellé)", all_articles, default=all_articles)
@@ -224,7 +220,6 @@ if uploaded_file is not None:
         (df_complet['Date'] >= date_debut) &
         (df_complet['Date'] <= date_fin) &
         (df_complet['Catégorie'].isin(selected_categories)) &
-        (df_complet['Code_établissement'].isin(selected_etablissements)) &
         (df_complet['Libellé'].isin(selected_articles))
     ]
 
