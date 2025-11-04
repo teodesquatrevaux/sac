@@ -257,7 +257,7 @@ if uploaded_file is not None:
     frequence_choix = st.selectbox(
         "Agréger par :",
         options=['Mois', 'Semaine', 'Jour'],
-        index=0  # 'Mois' par défaut
+        index=2  # 'Mois' par défaut
     )
 
     # Préparation des données pour le graphique d'évolution
