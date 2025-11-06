@@ -667,6 +667,11 @@ if page == "🆚 Comparaison":
         if uploaded_file != st.session_state.uploaded_file:
             st.session_state.uploaded_file = uploaded_file
             st.session_state.df_complet = load_data(uploaded_file)
+            # Réinitialiser les filtres de comparaison lors du chargement d'un nouveau fichier
+            if 'periode1_filters' in st.session_state:
+                del st.session_state.periode1_filters
+            if 'periode2_filters' in st.session_state:
+                del st.session_state.periode2_filters
             st.rerun()
     
     # Utiliser les données du session_state si disponibles
@@ -678,12 +683,15 @@ if page == "🆚 Comparaison":
         # Configuration des deux colonnes de comparaison
         col1, col2 = st.columns(2)
         
+        # Définir les catégories globales
+        all_categories = sorted(df_complet['Catégorie'].unique())
+        
         # Initialisation des sessions states pour les filtres de comparaison
         if 'periode1_filters' not in st.session_state:
             st.session_state.periode1_filters = {
                 'date_debut': df_complet['Date'].min().date(),
                 'date_fin': df_complet['Date'].max().date(),
-                'categories': list(df_complet['Catégorie'].unique()),
+                'categories': all_categories,
                 'articles': list(df_complet['Libellé'].unique())
             }
         
@@ -691,10 +699,20 @@ if page == "🆚 Comparaison":
             st.session_state.periode2_filters = {
                 'date_debut': df_complet['Date'].min().date(),
                 'date_fin': df_complet['Date'].max().date(),
-                'categories': list(df_complet['Catégorie'].unique()),
+                'categories': all_categories,
                 'articles': list(df_complet['Libellé'].unique())
             }
-        
+
+        # Initialisation des états des widgets (s'ils n'existent pas)
+        if 'cat_p1' not in st.session_state:
+            st.session_state.cat_p1 = st.session_state.periode1_filters['categories']
+        if 'art_p1' not in st.session_state:
+            st.session_state.art_p1 = st.session_state.periode1_filters['articles']
+        if 'cat_p2' not in st.session_state:
+            st.session_state.cat_p2 = st.session_state.periode2_filters['categories']
+        if 'art_p2' not in st.session_state:
+            st.session_state.art_p2 = st.session_state.periode2_filters['articles']
+            
         # Variables pour stocker les graphiques comparatifs
         fig_comp_cat = None
         fig_comp_rep = None
@@ -728,22 +746,23 @@ if page == "🆚 Comparaison":
             st.subheader("🎯 Filtres")
             
             # Catégories Période 1
-            all_categories = sorted(df_complet['Catégorie'].unique())
             cat_col1, cat_col2 = st.columns(2)
             with cat_col1:
                 if st.button("✅ Toutes P1", key="all_cat_p1"):
                     st.session_state.periode1_filters['categories'] = all_categories
+                    st.session_state.cat_p1 = all_categories  # <-- CORRECTION
                     st.rerun()
             with cat_col2:
                 if st.button("❌ Aucune P1", key="no_cat_p1"):
                     st.session_state.periode1_filters['categories'] = []
+                    st.session_state.cat_p1 = []  # <-- CORRECTION
                     st.rerun()
             
             selected_categories1 = st.multiselect(
                 "Catégories Période 1",
                 all_categories,
-                default=st.session_state.periode1_filters['categories'],
-                key="cat_p1"
+                # Utiliser la 'key' pour la valeur, 'default' n'est plus nécessaire
+                key="cat_p1" 
             )
             
             # Articles Période 1
@@ -752,28 +771,31 @@ if page == "🆚 Comparaison":
             else:
                 articles_filtres1 = sorted(df_complet['Libellé'].unique())
             
-            # Obtenir les articles valides pour la sélection par défaut
-            default_articles1 = st.session_state.periode1_filters.get('articles', [])
-            valid_default_articles1 = get_valid_default_articles(default_articles1, articles_filtres1)
-            
             art_col1, art_col2 = st.columns(2)
             with art_col1:
                 if st.button("✅ Tous P1", key="all_art_p1"):
                     st.session_state.periode1_filters['articles'] = articles_filtres1
+                    st.session_state.art_p1 = articles_filtres1  # <-- CORRECTION
                     st.rerun()
             with art_col2:
                 if st.button("❌ Aucun P1", key="no_art_p1"):
                     st.session_state.periode1_filters['articles'] = []
+                    st.session_state.art_p1 = []  # <-- CORRECTION
                     st.rerun()
+            
+            # Mettre à jour l'état du widget 'art_p1' pour qu'il corresponde aux articles valides
+            current_articles_p1 = st.session_state.get('art_p1', st.session_state.periode1_filters['articles'])
+            valid_articles_p1 = get_valid_default_articles(current_articles_p1, articles_filtres1)
+            st.session_state.art_p1 = valid_articles_p1 # S'assurer que seuls les articles valides sont sélectionnés
             
             selected_articles1 = st.multiselect(
                 "Articles Période 1",
                 articles_filtres1,
-                default=valid_default_articles1,
+                # Utiliser la 'key' pour la valeur
                 key="art_p1"
             )
             
-            # Mise à jour des filtres dans session_state
+            # Mise à jour des filtres dans session_state (synchronisation)
             st.session_state.periode1_filters.update({
                 'date_debut': date_debut1,
                 'date_fin': date_fin1,
@@ -831,16 +853,18 @@ if page == "🆚 Comparaison":
             with cat_col1:
                 if st.button("✅ Toutes P2", key="all_cat_p2"):
                     st.session_state.periode2_filters['categories'] = all_categories
+                    st.session_state.cat_p2 = all_categories  # <-- CORRECTION
                     st.rerun()
             with cat_col2:
                 if st.button("❌ Aucune P2", key="no_cat_p2"):
                     st.session_state.periode2_filters['categories'] = []
+                    st.session_state.cat_p2 = []  # <-- CORRECTION
                     st.rerun()
             
             selected_categories2 = st.multiselect(
                 "Catégories Période 2",
                 all_categories,
-                default=st.session_state.periode2_filters['categories'],
+                # Utiliser la 'key' pour la valeur
                 key="cat_p2"
             )
             
@@ -850,28 +874,31 @@ if page == "🆚 Comparaison":
             else:
                 articles_filtres2 = sorted(df_complet['Libellé'].unique())
             
-            # Obtenir les articles valides pour la sélection par défaut
-            default_articles2 = st.session_state.periode2_filters.get('articles', [])
-            valid_default_articles2 = get_valid_default_articles(default_articles2, articles_filtres2)
-            
             art_col1, art_col2 = st.columns(2)
             with art_col1:
                 if st.button("✅ Tous P2", key="all_art_p2"):
                     st.session_state.periode2_filters['articles'] = articles_filtres2
+                    st.session_state.art_p2 = articles_filtres2  # <-- CORRECTION
                     st.rerun()
             with art_col2:
                 if st.button("❌ Aucun P2", key="no_art_p2"):
                     st.session_state.periode2_filters['articles'] = []
+                    st.session_state.art_p2 = []  # <-- CORRECTION
                     st.rerun()
             
+            # Mettre à jour l'état du widget 'art_p2' pour qu'il corresponde aux articles valides
+            current_articles_p2 = st.session_state.get('art_p2', st.session_state.periode2_filters['articles'])
+            valid_articles_p2 = get_valid_default_articles(current_articles_p2, articles_filtres2)
+            st.session_state.art_p2 = valid_articles_p2 # S'assurer que seuls les articles valides sont sélectionnés
+
             selected_articles2 = st.multiselect(
                 "Articles Période 2",
                 articles_filtres2,
-                default=valid_default_articles2,
+                # Utiliser la 'key' pour la valeur
                 key="art_p2"
             )
             
-            # Mise à jour des filtres dans session_state
+            # Mise à jour des filtres dans session_state (synchronisation)
             st.session_state.periode2_filters.update({
                 'date_debut': date_debut2,
                 'date_fin': date_fin2,
@@ -904,7 +931,7 @@ if page == "🆚 Comparaison":
         st.markdown("---")
         st.header("📊 Analyse Comparative")
         
-        if not df_periode1.empty and not df_periode2.empty:
+        if (not df_periode1.empty) and (not df_periode2.empty):
             # Noms des périodes
             nom_periode1 = st.text_input("Nom de la Période 1", value="Période 1", key="nom_p1")
             nom_periode2 = st.text_input("Nom de la Période 2", value="Période 2", key="nom_p2")
@@ -983,513 +1010,3 @@ if page == "🆚 Comparaison":
     else:
         if st.session_state.uploaded_file is None:
             st.info("Veuillez charger un fichier CSV pour démarrer l'analyse comparative.")
-
-# --- Le reste du code pour le dashboard principal reste inchangé ---
-# [Les fonctions pour le dashboard principal et la génération PDF restent identiques...]
-
-# --- Fonction pour créer un PDF avec les graphiques (pour le dashboard principal) ---
-def create_pdf_with_charts(df, date_debut, date_fin, frequence_choix, critere_articles, critere_categories, critere_pie, 
-                          fig_evol, fig_top_art, fig_top_cat, fig_pie):
-    """Crée un rapport PDF complet avec les graphiques"""
-    
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), 
-                          topMargin=0.5*inch, bottomMargin=0.5*inch,
-                          leftMargin=0.5*inch, rightMargin=0.5*inch)
-    story = []
-    styles = getSampleStyleSheet()
-    
-    # Style personnalisé pour le titre
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        textColor=colors.HexColor('#2E86AB'),
-        spaceAfter=20,
-        alignment=1  # Centré
-    )
-    
-    # Style pour les sous-titres
-    subtitle_style = ParagraphStyle(
-        'CustomSubtitle',
-        parent=styles['Heading2'],
-        fontSize=12,
-        textColor=colors.HexColor('#2E86AB'),
-        spaceAfter=12,
-        spaceBefore=12
-    )
-    
-    # Style pour le texte normal
-    normal_style = styles['Normal']
-    
-    # En-tête du rapport
-    title = Paragraph("📊 RAPPORT D'ANALYSE DES VENTES", title_style)
-    story.append(title)
-    
-    # Période d'analyse
-    period_text = f"Période analysée : {date_debut.strftime('%d/%m/%Y')} au {date_fin.strftime('%d/%m/%Y')}"
-    period = Paragraph(period_text, normal_style)
-    story.append(period)
-    
-    date_generation = f"Généré le : {datetime.now().strftime('%d/%m/%Y à %H:%M')}"
-    generation = Paragraph(date_generation, normal_style)
-    story.append(generation)
-    
-    story.append(Spacer(1, 20))
-    
-    # --- Section 1: Indicateurs Clés ---
-    story.append(Paragraph("📈 INDICATEURS CLÉS DE PERFORMANCE", subtitle_style))
-    
-    # Calcul des KPIs
-    total_ttc = df['Total_TTC'].sum()
-    total_ht = df['Total_HT'].sum()
-    total_quantite = df['Quantité'].sum()
-    prix_moyen = total_ttc / total_quantite if total_quantite > 0 else 0
-    
-    # Tableau des KPIs
-    kpi_data = [
-        ['Indicateur', 'Valeur'],
-        ["Chiffre d'Affaires TTC", f"{total_ttc:,.2f} €"],
-        ["Chiffre d'Affaires HT", f"{total_ht:,.2f} €"],
-        ["Volume d'Articles Vendus", f"{total_quantite:,.0f}"],
-        ["Prix Moyen par Article", f"{prix_moyen:,.2f} €"]
-    ]
-    
-    kpi_table = Table(kpi_data, colWidths=[200, 150])
-    kpi_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E86AB')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
-    ]))
-    story.append(kpi_table)
-    story.append(Spacer(1, 20))
-    
-    # --- Section 2: Évolution Temporelle ---
-    story.append(Paragraph("📈 ÉVOLUTION DU CHIFFRE D'AFFAIRES", subtitle_style))
-    
-    # Ajouter le graphique d'évolution
-    if fig_evol:
-        try:
-            # Convertir le graphique Plotly en image
-            img_buffer = plotly_fig_to_image(fig_evol, width=700, height=350)
-            img = Image(img_buffer, width=6.5*inch, height=3*inch)
-            story.append(img)
-            story.append(Spacer(1, 10))
-        except Exception as e:
-            error_msg = Paragraph(f"Erreur lors de la génération du graphique d'évolution: {e}", normal_style)
-            story.append(error_msg)
-    
-    story.append(Spacer(1, 15))
-    
-    # --- Section 3: Top 10 ---
-    story.append(Paragraph("🏆 ANALYSE DES PERFORMERS", subtitle_style))
-    
-    # Top 10 Articles
-    story.append(Paragraph(f"Top 10 Articles - {critere_articles}", subtitle_style))
-    if fig_top_art:
-        try:
-            img_buffer = plotly_fig_to_image(fig_top_art, width=600, height=400)
-            img = Image(img_buffer, width=6*inch, height=3.5*inch)
-            story.append(img)
-            story.append(Spacer(1, 10))
-        except Exception as e:
-            error_msg = Paragraph(f"Erreur lors de la génération du graphique Top Articles: {e}", normal_style)
-            story.append(error_msg)
-    
-    story.append(Spacer(1, 10))
-    
-    # Top 10 Catégories
-    story.append(Paragraph(f"Top 10 Catégories - {critere_categories}", subtitle_style))
-    if fig_top_cat:
-        try:
-            img_buffer = plotly_fig_to_image(fig_top_cat, width=600, height=400)
-            img = Image(img_buffer, width=6*inch, height=3.5*inch)
-            story.append(img)
-            story.append(Spacer(1, 10))
-        except Exception as e:
-            error_msg = Paragraph(f"Erreur lors de la génération du graphique Top Catégories: {e}", normal_style)
-            story.append(error_msg)
-    
-    story.append(Spacer(1, 15))
-    
-    # --- Section 4: Répartition par Catégorie ---
-    story.append(Paragraph("💰 RÉPARTITION PAR CATÉGORIE", subtitle_style))
-    story.append(Paragraph(f"Répartition par {critere_pie}", subtitle_style))
-    
-    if fig_pie:
-        try:
-            img_buffer = plotly_fig_to_image(fig_pie, width=500, height=400)
-            img = Image(img_buffer, width=5*inch, height=3.5*inch)
-            story.append(img)
-        except Exception as e:
-            error_msg = Paragraph(f"Erreur lors de la génération du graphique de répartition: {e}", normal_style)
-            story.append(error_msg)
-    
-    # --- Section 5: Paramètres utilisés ---
-    story.append(Spacer(1, 20))
-    story.append(Paragraph("⚙️ PARAMÈTRES DE L'ANALYSE", subtitle_style))
-    
-    param_data = [
-        ['Paramètre', 'Valeur'],
-        ['Période', f"{date_debut.strftime('%d/%m/%Y')} au {date_fin.strftime('%d/%m/%Y')}"],
-        ['Fréquence d\'agrégation', frequence_choix],
-        ['Critère Top Articles', critere_articles],
-        ['Critère Top Catégories', critere_categories],
-        ['Critère Répartition', critere_pie],
-        ['Nombre de catégories sélectionnées', str(len(df['Catégorie'].unique()))],
-        ['Nombre d\'articles sélectionnés', str(len(df['Libellé'].unique()))]
-    ]
-    
-    param_table = Table(param_data, colWidths=[200, 200])
-    param_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E86AB')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
-        ('FONTSIZE', (0, 1), (-1, -1), 9),
-        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
-    ]))
-    story.append(param_table)
-    
-    # Pied de page
-    story.append(Spacer(1, 20))
-    footer = Paragraph("Rapport généré automatiquement par le Dashboard d'Analyse des Ventes - © 2024", normal_style)
-    story.append(footer)
-    
-    # Génération du PDF
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
-
-# --- Interface Streamlit principale (Dashboard) ---
-if page == "📊 Dashboard":
-    st.title("Dashboard Interactif des Ventes")
-
-    # Afficher le fichier actuellement chargé
-    if st.session_state.uploaded_file is not None:
-        st.success(f"📁 Fichier chargé : {st.session_state.uploaded_file.name}")
-        
-        # Bouton pour supprimer le fichier chargé
-        if st.button("🗑️ Supprimer le fichier chargé"):
-            st.session_state.uploaded_file = None
-            st.session_state.df_complet = None
-            st.rerun()
-
-    uploaded_file = st.file_uploader(
-        "Glissez-déposez votre journal des ventes (CSV) ici",
-        type=["csv"],
-        help="Le fichier doit être un CSV avec un séparateur ';' et un encodage 'latin1'.",
-        key="dashboard_upload"
-    )
-
-    # Gérer le chargement du fichier
-    if uploaded_file is not None:
-        # Si un nouveau fichier est chargé, mettre à jour le session_state
-        if uploaded_file != st.session_state.uploaded_file:
-            st.session_state.uploaded_file = uploaded_file
-            st.session_state.df_complet = load_data(uploaded_file)
-            st.rerun()
-
-    # Utiliser les données du session_state si disponibles
-    if st.session_state.df_complet is not None:
-        df_complet = st.session_state.df_complet
-
-        # --- Barre Latérale des Filtres ---
-        st.sidebar.header("Filtres")
-
-        min_date = df_complet['Date'].min().date()
-        max_date = df_complet['Date'].max().date()
-        
-        # Bouton de réinitialisation uniquement
-        if st.sidebar.button("🗑️ Réinitialiser les filtres", use_container_width=True):
-            if 'selected_categories' in st.session_state:
-                del st.session_state.selected_categories
-            if 'selected_articles' in st.session_state:
-                del st.session_state.selected_articles
-
-        # Dates
-        date_debut = st.sidebar.date_input(
-            "Date de début", 
-            min_date, 
-            min_value=min_date, 
-            max_value=max_date
-        )
-        date_fin = st.sidebar.date_input(
-            "Date de fin", 
-            max_date, 
-            min_value=date_debut, 
-            max_value=max_date
-        )
-
-        all_categories = sorted(df_complet['Catégorie'].unique())
-        
-        # Boutons pour les catégories
-        st.sidebar.markdown("**Catégories**")
-        cat_col1, cat_col2 = st.sidebar.columns(2)
-        with cat_col1:
-            if st.button("✅ Toutes", key="all_categories", use_container_width=True):
-                st.session_state.selected_categories = all_categories
-        with cat_col2:
-            if st.button("❌ Aucune", key="no_categories", use_container_width=True):
-                st.session_state.selected_categories = []
-
-        selected_categories = st.sidebar.multiselect(
-            "Sélection des catégories",
-            all_categories,
-            default=st.session_state.get('selected_categories', all_categories),
-            label_visibility="collapsed"
-        )
-        
-        # Stocker les catégories sélectionnées
-        st.session_state.selected_categories = selected_categories
-
-        # Filtrer les articles en fonction des catégories sélectionnées
-        if selected_categories:
-            # Obtenir les articles qui appartiennent aux catégories sélectionnées
-            articles_filtres = sorted(df_complet[df_complet['Catégorie'].isin(selected_categories)]['Libellé'].unique())
-        else:
-            # Si aucune catégorie n'est sélectionnée, montrer tous les articles
-            articles_filtres = sorted(df_complet['Libellé'].unique())
-
-        # Boutons pour les articles
-        st.sidebar.markdown("**Articles**")
-        art_col1, art_col2 = st.sidebar.columns(2)
-        with art_col1:
-            if st.button("✅ Tous", key="all_articles", use_container_width=True):
-                st.session_state.selected_articles = articles_filtres
-        with art_col2:
-            if st.button("❌ Aucun", key="no_articles", use_container_width=True):
-                st.session_state.selected_articles = []
-
-        # Fonction pour filtrer les articles sélectionnés qui existent dans la liste filtrée
-        def get_valid_default_articles(default_articles, available_articles):
-            """Retourne uniquement les articles par défaut qui existent dans la liste disponible"""
-            return [article for article in default_articles if article in available_articles]
-
-        # Obtenir les articles sélectionnés par défaut (valides)
-        default_articles = st.session_state.get('selected_articles', articles_filtres)
-        valid_default_articles = get_valid_default_articles(default_articles, articles_filtres)
-
-        selected_articles = st.sidebar.multiselect(
-            "Sélection des articles",
-            articles_filtres,
-            default=valid_default_articles,
-            label_visibility="collapsed"
-        )
-        
-        # Stocker les articles sélectionnés
-        st.session_state.selected_articles = selected_articles
-
-        # Application des filtres
-        df = df_complet[
-            (df_complet['Date'] >= pd.to_datetime(date_debut)) &
-            (df_complet['Date'] <= pd.to_datetime(date_fin)) &
-            (df_complet['Catégorie'].isin(selected_categories)) &
-            (df_complet['Libellé'].isin(selected_articles))
-        ]
-
-        if df.empty:
-            st.warning("Aucune donnée disponible pour les filtres sélectionnés.")
-            st.stop()
-
-        # --- AFFICHAGE COMPLET DU DASHBOARD ---
-        st.markdown(f"Analyse de la période du **{date_debut.strftime('%d/%m/%Y')}** au **{date_fin.strftime('%d/%m/%Y')}**")
-
-        # Section 1: Indicateurs Clés (KPIs)
-        st.header("Indicateurs Clés (KPIs)")
-
-        total_ttc = df['Total_TTC'].sum()
-        total_ht = df['Total_HT'].sum()
-        total_quantite = df['Quantité'].sum()
-        prix_moyen = total_ttc / total_quantite if total_quantite > 0 else 0
-
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        kpi1.metric("Chiffre d'Affaires Total (TTC)", f"{total_ttc:,.2f} €")
-        kpi2.metric("Chiffre d'Affaires Total (HT)", f"{total_ht:,.2f} €")
-        kpi3.metric("Volume d'Articles Vendus", f"{total_quantite:,.0f}")
-        kpi4.metric("Prix Moyen par Article (TTC)", f"{prix_moyen:,.2f} €")
-
-        st.markdown("---")
-
-        # --- Section 2: Évolution Temporelle ---
-        st.header("📈 Évolution du Chiffre d'Affaires (TTC)")
-
-        # Widget pour choisir la fréquence
-        frequence_choix = st.selectbox(
-            "Agréger par :",
-            options=['Mois', 'Semaine', 'Jour'],
-            index=0  # 'Mois' par défaut
-        )
-
-        # Préparation des données pour le graphique d'évolution
-        freq_map = {'Jour': 'D', 'Semaine': 'W', 'Mois': 'M'}
-        freq_code = freq_map[frequence_choix]
-
-        df_temp = df.set_index('Date')
-        df_evolution = df_temp['Total_TTC'].resample(freq_code).sum().reset_index()
-
-        # Renommer les colonnes pour le graphique
-        df_evolution.columns = [frequence_choix, 'Total TTC (€)']
-
-        # Création du graphique
-        fig_evol = px.line(
-            df_evolution,
-            x=frequence_choix,
-            y='Total TTC (€)',
-            title=f"Évolution du Total TTC par {frequence_choix.lower()}"
-        )
-        st.plotly_chart(fig_evol, use_container_width=True)
-
-        st.markdown("---")
-
-        # --- Section 3: Top 10 ---
-        st.header("🏆 Analyse des Performers")
-        col1, col2 = st.columns(2)
-
-        # Variables pour stocker les graphiques
-        fig_top_art = None
-        fig_top_cat = None
-
-        # Colonne 1: Top 10 Articles
-        with col1:
-            st.subheader("Top 10 Articles")
-            
-            # Sélecteur pour le critère de classement
-            critere_articles = st.selectbox(
-                "Classer les articles par :",
-                options=["Chiffre d'Affaires (TTC)", "Volume des Ventes (Quantité)"],
-                key='critere_articles'
-            )
-            
-            # Logique de classement
-            if critere_articles == "Chiffre d'Affaires (TTC)":
-                col_a_sommer = 'Total_TTC'
-                axe_x_label = "Chiffre d'Affaires Total (TTC)"
-            else:
-                col_a_sommer = 'Quantité'
-                axe_x_label = "Volume Total Vendu (Quantité)"
-
-            # Calcul du Top 10
-            df_groupe_art = df.groupby('Libellé')[col_a_sommer].sum().reset_index()
-            df_top10_art = df_groupe_art.sort_values(by=col_a_sommer, ascending=False).head(10)
-
-            # Graphique Top 10 Articles
-            fig_top_art = px.bar(
-                df_top10_art,
-                y='Libellé',
-                x=col_a_sommer,
-                title=f"Top 10 des articles par {critere_articles}",
-                labels={'Libellé': 'Article', col_a_sommer: axe_x_label}
-            )
-            fig_top_art.update_layout(yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_top_art, use_container_width=True)
-
-        # Colonne 2: Top 10 Catégories
-        with col2:
-            st.subheader("Top 10 Catégories")
-            
-            # Sélecteur pour le critère de classement
-            critere_categories = st.selectbox(
-                "Classer les catégories par :",
-                options=["Chiffre d'Affaires (TTC)", "Volume des Ventes (Quantité)"],
-                key='critere_categories'
-            )
-            
-            # Logique de classement
-            if critere_categories == "Chiffre d'Affaires (TTC)":
-                col_a_sommer_cat = 'Total_TTC'
-                axe_x_label_cat = "Chiffre d'Affaires Total (TTC)"
-            else:
-                col_a_sommer_cat = 'Quantité'
-                axe_x_label_cat = "Volume Total Vendu (Quantité)"
-
-            # Calcul du Top 10
-            df_groupe_cat = df.groupby('Catégorie')[col_a_sommer_cat].sum().reset_index()
-            df_top10_cat = df_groupe_cat.sort_values(by=col_a_sommer_cat, ascending=False).head(10)
-
-            # Graphique Top 10 Catégories
-            fig_top_cat = px.bar(
-                df_top10_cat,
-                y='Catégorie',
-                x=col_a_sommer_cat,
-                title=f"Top 10 des catégories par {critere_categories}",
-                labels={'Catégorie': 'Catégorie', col_a_sommer_cat: axe_x_label_cat}
-            )
-            fig_top_cat.update_layout(yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_top_cat, use_container_width=True)
-
-        st.markdown("---")
-
-        # --- Section 4: Répartition par Catégorie ---
-        st.header("💰 Répartition par Catégorie")
-
-        # Sélecteur pour le camembert
-        critere_pie = st.radio(
-            "Voir la répartition par :",
-            options=["Chiffre d'Affaires (TTC)", "Volume des Ventes (Quantité)"],
-            key='critere_pie'
-        )
-
-        if critere_pie == "Chiffre d'Affaires (TTC)":
-            col_pie = 'Total_TTC'
-            title_pie = "Répartition du Chiffre d'Affaires (TTC) par Catégorie"
-        else:
-            col_pie = 'Quantité'
-            title_pie = "Répartition du Volume des Ventes par Catégorie"
-
-        # Calcul de la répartition
-        df_repartition = df.groupby('Catégorie')[col_pie].sum().reset_index()
-
-        # Graphique Camembert
-        fig_pie = px.pie(
-            df_repartition,
-            names='Catégorie',
-            values=col_pie,
-            title=title_pie
-        )
-        fig_pie.update_traces(textinfo='percent+label', textposition='inside')
-        st.plotly_chart(fig_pie, use_container_width=True)
-
-        # --- Section 5: Téléchargement PDF ---
-        st.sidebar.markdown("---")
-        st.sidebar.header("Téléchargement")
-
-        # Créer le rapport PDF avec les graphiques actuels
-        pdf_buffer = create_pdf_with_charts(
-            df, pd.to_datetime(date_debut), pd.to_datetime(date_fin), frequence_choix, 
-            critere_articles, critere_categories, critere_pie,
-            fig_evol, fig_top_art, fig_top_cat, fig_pie
-        )
-        
-        # Bouton de téléchargement PDF
-        st.sidebar.download_button(
-            label="📥 Télécharger le Rapport (PDF)",
-            data=pdf_buffer,
-            file_name=f"rapport_ventes_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-            mime="application/pdf",
-            help="Téléchargez un rapport PDF avec les graphiques actuels"
-        )
-
-        st.sidebar.markdown("""
-        **Le PDF inclut :**
-        • Les indicateurs clés
-        • Tous les graphiques affichés
-        • Les paramètres sélectionnés
-        """)
-
-        # --- Section 6: Données Brutes ---
-        with st.expander("Afficher les données filtrées"):
-            st.dataframe(df)
-
-    else:
-        if st.session_state.uploaded_file is None:
-            st.info("Veuillez charger un fichier CSV pour démarrer l'analyse.")
